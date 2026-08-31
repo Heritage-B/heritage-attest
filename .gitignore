@@ -11,3 +11,6 @@ contracts/lib/
 contracts/out/
 contracts/cache/
 broadcast/
+
+# foundry preprocess
+contracts/foundry-pp/

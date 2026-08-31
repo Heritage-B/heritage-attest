@@ -54,12 +54,20 @@ npm run build
 npm test
 ```
 
-Deploy to peaq Agung testnet:
+Prove the whole flow end-to-end on a local chain (no funds, no external RPC):
+
+```bash
+bash scripts/e2e-local.sh
+# ▸ starts anvil → deploys → mint vehicle → anchor report hash → verify → tamper-reject
+# ✅ E2E PASSED — verify(original)=true, verify(forged)=false, idempotent VIN
+```
+
+Deploy to a live chain (peaq Agung testnet, or mainnet):
 
 ```bash
 cd contracts
 DEPLOYER_PK=0x... forge script script/Deploy.s.sol \
-  --rpc-url https://rpcpc1-qa.agung.peaq.network --broadcast
+  --rpc-url <PEAQ_RPC> --broadcast
 ```
 
 ## Status
