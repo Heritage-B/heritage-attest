@@ -1,0 +1,14 @@
+{
+  "name": "heritage-attest",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Verifiable vehicle provenance — on-chain attestations for HeritageB",
+  "license": "MIT",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace @heritageb/attestor",
+    "test": "npm test --workspace @heritageb/attestor"
+  }
+}

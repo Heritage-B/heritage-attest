@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Verify vehicle provenance — Heritage B</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0a0b0b; color: #e9e6dd;
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Arial, sans-serif; }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 48px 22px; }
+  .brand { font-size: 12px; letter-spacing: .3em; text-transform: uppercase; color: #cdbf9e; }
+  h1 { font-weight: 400; font-size: 30px; margin: 6px 0 4px; }
+  p.sub { color: #8a8577; margin-top: 0; }
+  .row { display: flex; gap: 10px; margin: 22px 0; }
+  input { flex: 1; background: #101116; border: 1px solid #26262c; color: #e9e6dd;
+    border-radius: 10px; padding: 13px 15px; font-size: 15px; }
+  button { background: #f8eac8; color: #0a0b0b; border: 0; border-radius: 10px;
+    padding: 13px 20px; font-weight: 600; font-size: 15px; cursor: pointer; }
+  .card { background: #0d0e11; border: 1px solid #1a1c20; border-radius: 14px; padding: 18px; margin-top: 14px; }
+  .muted { color: #6a685f; }
+  .att { display: flex; gap: 12px; align-items: baseline; padding: 9px 0; border-bottom: 1px solid #17181c; }
+  .att .h { font-family: ui-monospace, monospace; font-size: 12px; color: #cdbf9e; word-break: break-all; }
+  .att .t { margin-left: auto; color: #8a8577; font-size: 12px; white-space: nowrap; }
+  .ok { color: #c5c8a5; } .bad { color: #d98c6b; }
+  code { color: #cdbf9e; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">Heritage&nbsp;B</div>
+  <h1>Verify vehicle provenance</h1>
+  <p class="sub">Enter a VIN to see its tamper-evident, on-chain provenance record.</p>
+
+  <div class="row">
+    <input id="vin" placeholder="VIN, e.g. SJNFAAJ11U1234567" autocomplete="off" />
+    <button id="go">Verify</button>
+  </div>
+
+  <div id="out"></div>
+
+  <p class="muted" style="margin-top:26px;font-size:12.5px">
+    Only hashes are stored on-chain — never your raw data. This page reads the public
+    <code>Attestations</code> contract on peaq and lists every report anchored for the VIN.
+  </p>
+</div>
+
+<script type="module">
+  import {
+    createPublicClient, http, defineChain, keccak256, stringToBytes,
+  } from "https://esm.sh/viem@2.21.0";
+
+  // Filled in after deployment (see contracts/script/Deploy.s.sol output).
+  const CONFIG = {
+    rpcUrl: "https://rpcpc1-qa.agung.peaq.network",
+    chainId: 9990,
+    registry: "0x0000000000000000000000000000000000000000",
+    attestations: "0x0000000000000000000000000000000000000000",
+  };
+
+  const registryAbi = [
+    { type: "function", name: "tokenForVin", stateMutability: "view",
+      inputs: [{ name: "vinHash", type: "bytes32" }], outputs: [{ type: "uint256" }] },
+  ];
+  const attAbi = [
+    { type: "function", name: "count", stateMutability: "view",
+      inputs: [{ name: "tokenId", type: "uint256" }], outputs: [{ type: "uint256" }] },
+    { type: "function", name: "at", stateMutability: "view",
+      inputs: [{ name: "tokenId", type: "uint256" }, { name: "index", type: "uint256" }],
+      outputs: [{ components: [
+        { name: "reportHash", type: "bytes32" }, { name: "timestamp", type: "uint64" },
+        { name: "signer", type: "address" }, { name: "reportType", type: "bytes32" },
+      ], type: "tuple" }] },
+  ];
+
+  const chain = defineChain({
+    id: CONFIG.chainId, name: "peaq",
+    nativeCurrency: { name: "PEAQ", symbol: "PEAQ", decimals: 18 },
+    rpcUrls: { default: { http: [CONFIG.rpcUrl] } },
+  });
+  const client = createPublicClient({ chain, transport: http(CONFIG.rpcUrl) });
+  const out = document.getElementById("out");
+
+  async function verify() {
+    const vin = document.getElementById("vin").value.trim().toUpperCase();
+    if (!vin) return;
+    out.innerHTML = `<div class="card muted">Reading chain…</div>`;
+    if (CONFIG.registry.startsWith("0x0000")) {
+      out.innerHTML = `<div class="card muted">Contracts not deployed yet — fill CONFIG after running the deploy script.</div>`;
+      return;
+    }
+    try {
+      const vinHash = keccak256(stringToBytes(vin));
+      const tokenId = await client.readContract({ address: CONFIG.registry, abi: registryAbi, functionName: "tokenForVin", args: [vinHash] });
+      if (tokenId === 0n) {
+        out.innerHTML = `<div class="card"><span class="bad">No provenance record</span> for this VIN yet.</div>`;
+        return;
+      }
+      const n = await client.readContract({ address: CONFIG.attestations, abi: attAbi, functionName: "count", args: [tokenId] });
+      let rows = "";
+      for (let i = Number(n) - 1; i >= 0; i--) {
+        const a = await client.readContract({ address: CONFIG.attestations, abi: attAbi, functionName: "at", args: [tokenId, BigInt(i)] });
+        const when = new Date(Number(a.timestamp) * 1000).toLocaleString();
+        rows += `<div class="att"><span class="h">${a.reportHash}</span><span class="t">${when}</span></div>`;
+      }
+      out.innerHTML = `<div class="card"><div class="ok">✓ Verified vehicle #${tokenId} · ${n} anchored report(s)</div>
+        <div style="margin-top:10px">${rows}</div></div>`;
+    } catch (e) {
+      out.innerHTML = `<div class="card bad">Error reading chain: ${String(e).slice(0, 160)}</div>`;
+    }
+  }
+  document.getElementById("go").addEventListener("click", verify);
+  document.getElementById("vin").addEventListener("keydown", (e) => { if (e.key === "Enter") verify(); });
+</script>
+</body>
+</html>

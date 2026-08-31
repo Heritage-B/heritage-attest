@@ -1,0 +1,12 @@
+[profile.default]
+src = "src"
+out = "out"
+test = "test"
+libs = ["lib"]
+solc = "0.8.24"
+optimizer = true
+optimizer_runs = 200
+
+[rpc_endpoints]
+peaq_agung = "${PEAQ_AGUNG_RPC}"
+peaq = "${PEAQ_RPC}"

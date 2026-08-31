@@ -1,0 +1,22 @@
+{
+  "name": "@heritageb/attestor",
+  "version": "0.1.0",
+  "description": "Canonicalize a vehicle report, hash it, sign it, anchor it on-chain.",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --test \"test/*.test.mjs\""
+  },
+  "dependencies": {
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}
