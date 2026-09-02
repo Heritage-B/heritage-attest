@@ -24,6 +24,14 @@ history impossible to retroactively forge, and portable across owners, dealers a
 report hashes against it, callable from any backend. Raw scans stay off-chain; only hashes +
 signatures go on-chain. MIT-licensed.
 
+**Live on peaq mainnet (M1 already shipped, 2026-09-02)** — the module is deployed and
+proven end-to-end on peaq **mainnet** (chainId 3338), not just testnet:
+- `VehicleRegistry`: [`0x99065e9801C6416E542C6D129d18c82d51f08475`](https://peaq.subscan.io/account/0x99065e9801C6416E542C6D129d18c82d51f08475)
+- `Attestations`: [`0x9aa2ed63403400aB7Cdeb44f933729fB3AF5f46d`](https://peaq.subscan.io/account/0x9aa2ed63403400aB7Cdeb44f933729fB3AF5f46d)
+- Demo attestation tx: `0x25f8a970667810de5dddab2711cfb9609145170694e59944b1077555ac5005b6`
+- Verified end-to-end on mainnet: mint per-VIN → anchor report hash → `verify(original)=true`,
+  `verify(tampered)=false`, idempotent VIN. Public verify-by-VIN page in `apps/verify`.
+
 **Ask** — Up to $50,000, milestone-based.
 
 **Milestones / OKRs**
