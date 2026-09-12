@@ -1,8 +1,8 @@
-// End-to-end проверка всего on-chain флоу против локального anvil (или любого EVM):
-// deploy (снаружи) → register vehicle → anchor report hash → verify → tamper check.
-// Запуск:
+// End-to-end check of the whole on-chain flow against a local anvil (or any EVM):
+// deploy (externally) → register vehicle → anchor report hash → verify → tamper check.
+// Run:
 //   1) anvil --silent &
-//   2) forge script script/Deploy.s.sol --rpc-url http://127.0.0.1:8545 --broadcast   (в contracts/)
+//   2) forge script script/Deploy.s.sol --rpc-url http://127.0.0.1:8545 --broadcast   (in contracts/)
 //   3) REGISTRY=0x.. ATTESTATIONS=0x.. RPC=http://127.0.0.1:8545 CHAIN_ID=31337 PK=0x.. \
 //      node scripts/e2e-anvil.mjs
 import assert from "node:assert/strict";
@@ -49,7 +49,7 @@ assert.equal(ok, true, "original report must verify true");
 assert.equal(forged, false, "a forged/edited report must verify false");
 assert.equal(count, 1n, "exactly one attestation expected");
 
-// Второй якорь той же машины (VIN идемпотентен → тот же tokenId, count растёт).
+// Second anchor for the same vehicle (VIN is idempotent → same tokenId, count grows).
 const res2 = await anchorReport(adapter, { ...report, odometerKm: 142350, recordedAt: "2026-09-02T08:00:00Z" }, "health");
 assert.equal(res2.tokenId.toString(), res.tokenId.toString(), "same VIN → same tokenId");
 const count2 = await adapter.count(res.tokenId);
