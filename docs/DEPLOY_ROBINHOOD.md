@@ -162,8 +162,19 @@ forge verify-contract $ATTESTATIONS src/Attestations.sol:Attestations \
   --constructor-args $(cast abi-encode "constructor(address)" $REGISTRY)
 ```
 
-If the mainnet explorer API answers with a browser challenge, retry later or verify in the
-explorer UI with the standard JSON input:
+If the mainnet explorer API answers with a browser challenge (it did on 2026-10-01: Cloudflare
+"Just a moment…" / HTTP 403 for scripts), verify on Sourcify instead — it supports chain 4663 and the
+live contracts are verified there as `exact_match`:
+
+```bash
+forge verify-contract $REGISTRY src/VehicleRegistry.sol:VehicleRegistry \
+  --chain-id 4663 --rpc-url robinhood --verifier sourcify
+forge verify-contract $ATTESTATIONS src/Attestations.sol:Attestations \
+  --chain-id 4663 --rpc-url robinhood --verifier sourcify \
+  --constructor-args $(cast abi-encode "constructor(address)" $REGISTRY)
+```
+
+Or retry later, or verify in the explorer UI with the standard JSON input:
 `forge verify-contract $REGISTRY src/VehicleRegistry.sol:VehicleRegistry --show-standard-json-input > registry.json`.
 
 ## 6. Smoke test (testnet) — one real register + anchor, signed from the keystore

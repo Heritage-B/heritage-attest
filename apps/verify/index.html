@@ -57,7 +57,7 @@
 
   // Every chain the same VehicleRegistry + Attestations pair is deployed on. A VIN is looked
   // up on all of them in parallel; a network with empty addresses is skipped.
-  // Fill in the Robinhood Chain addresses after running contracts/script/Deploy.s.sol
+  // Live deployments (2026-10-01); same addresses on every chain. See README "Deployments".
   // (docs/DEPLOY_ROBINHOOD.md).
   const NETWORKS = [
     {
@@ -73,8 +73,8 @@
       name: "Robinhood Chain", chainId: 4663, symbol: "ETH",
       rpcUrl: "https://rpc.mainnet.chain.robinhood.com",
       explorer: (a) => `https://robinhoodchain.blockscout.com/address/${a}`,
-      registry: "",
-      attestations: "",
+      registry: "0x99065e9801C6416E542C6D129d18c82d51f08475",
+      attestations: "0x9aa2ed63403400aB7Cdeb44f933729fB3AF5f46d",
     },
     {
       // Robinhood Chain testnet.

@@ -50,11 +50,11 @@ privacy-first by design.
 |---|---|---|---|
 | peaq mainnet | 3338 | [`0x99065e9801C6416E542C6D129d18c82d51f08475`](https://peaq.subscan.io/account/0x99065e9801C6416E542C6D129d18c82d51f08475) | [`0x9aa2ed63403400aB7Cdeb44f933729fB3AF5f46d`](https://peaq.subscan.io/account/0x9aa2ed63403400aB7Cdeb44f933729fB3AF5f46d) |
 | Robinhood Chain Testnet | 46630 | [`0x99065e9801C6416E542C6D129d18c82d51f08475`](https://explorer.testnet.chain.robinhood.com/address/0x99065e9801C6416E542C6D129d18c82d51f08475) ✓ verified | [`0x9aa2ed63403400aB7Cdeb44f933729fB3AF5f46d`](https://explorer.testnet.chain.robinhood.com/address/0x9aa2ed63403400aB7Cdeb44f933729fB3AF5f46d) ✓ verified |
-| Robinhood Chain | 4663 | _pending deploy_ | _pending deploy_ |
+| Robinhood Chain | 4663 | [`0x99065e9801C6416E542C6D129d18c82d51f08475`](https://robinhoodchain.blockscout.com/address/0x99065e9801C6416E542C6D129d18c82d51f08475) ✓ [Sourcify](https://repo.sourcify.dev/4663/0x99065e9801C6416E542C6D129d18c82d51f08475) | [`0x9aa2ed63403400aB7Cdeb44f933729fB3AF5f46d`](https://robinhoodchain.blockscout.com/address/0x9aa2ed63403400aB7Cdeb44f933729fB3AF5f46d) ✓ [Sourcify](https://repo.sourcify.dev/4663/0x9aa2ed63403400aB7Cdeb44f933729fB3AF5f46d) |
 
 Same source, same compiler settings (`evm_version = "london"`, pinned in `foundry.toml`) →
 same bytecode on every chain.
-Same deployer and nonces → the same contract addresses on peaq and Robinhood Chain Testnet.
+Same deployer and nonces → the same contract addresses on peaq, Robinhood Chain and Robinhood Chain Testnet.
 
 Robinhood Chain Testnet smoke test (2026-10-01, dummy VIN `HBTESTVIN00000001`, not a customer car):
 [register](https://explorer.testnet.chain.robinhood.com/tx/0x3a96e17d47d6d3d2952712b8436d5430fc2a639bc6d739d11dddf7287ae86a16) →
@@ -119,8 +119,8 @@ MVP. Roadmap tracks the grant milestones:
 - **M2** — wired into the HeritageB app ("Seal on-chain") + public verify page. ✅
 - **Robinhood Chain** — second chain: `RobinhoodChainAdapter`, multi-chain anchoring, multi-chain
   verify page, Foundry deploy config. Built for Arbitrum Open House Singapore (Sept–Oct 2026).
-  ✅ Live on Robinhood Chain Testnet (2026-10-01). When an owner seals a report in the HeritageB app,
-  the backend anchors the same hash on peaq and Robinhood Chain in parallel.
+  ✅ Live on Robinhood Chain mainnet and testnet (2026-10-01). When an owner seals a report in the HeritageB
+  app, the production backend anchors the same hash on peaq and Robinhood Chain mainnet in parallel.
   Public verify page: https://heritage-b.github.io/heritage-attest/
 - **M3** — 50 vehicles, 5 paid pilot inspections, fraud-flag hit-rate report.
 

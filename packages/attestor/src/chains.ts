@@ -58,7 +58,11 @@ export const robinhood: ChainPreset = {
   nativeCurrency: ETH,
   rpcUrl: "https://rpc.mainnet.chain.robinhood.com",
   explorerUrl: "https://robinhoodchain.blockscout.com",
-  // deployment: filled in after `forge script` — see docs/DEPLOY_ROBINHOOD.md
+  // Deployed 2026-10-01, verified on Sourcify (exact match). Same addresses as on peaq and the testnet.
+  deployment: {
+    registry: "0x99065e9801C6416E542C6D129d18c82d51f08475",
+    attestations: "0x9aa2ed63403400aB7Cdeb44f933729fB3AF5f46d",
+  },
 };
 
 export const robinhoodTestnet: ChainPreset = {
