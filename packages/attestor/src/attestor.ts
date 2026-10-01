@@ -29,6 +29,31 @@ export async function anchorReport(
   return { tokenId, reportHash: hash, tx };
 }
 
+export type ChainAnchorOutcome =
+  | { chain: string; ok: true; result: AnchorResult }
+  | { chain: string; ok: false; error: string };
+
+/**
+ * Anchor the same report on several chains at once (e.g. peaq + Robinhood Chain).
+ * Chains are independent: one failing (RPC down, signer out of gas) never fails the others.
+ * The report hash is identical everywhere — it only depends on the report, not the chain.
+ * Outcomes come back in the order of `adapters`.
+ */
+export async function anchorReportMulti(
+  adapters: Record<string, ChainAdapter>,
+  report: VehicleReport,
+  reportType = "health",
+): Promise<ChainAnchorOutcome[]> {
+  const entries = Object.entries(adapters);
+  const settled = await Promise.allSettled(entries.map(([, a]) => anchorReport(a, report, reportType)));
+  return settled.map((s, i) => {
+    const chain = entries[i]![0];
+    return s.status === "fulfilled"
+      ? { chain, ok: true as const, result: s.value }
+      : { chain, ok: false as const, error: String(s.reason instanceof Error ? s.reason.message : s.reason) };
+  });
+}
+
 /**
  * Verify that a given report was anchored for its VIN — recomputes the hash and
  * checks it against the chain. Returns false if the vehicle was never registered.

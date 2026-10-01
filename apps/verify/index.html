@@ -25,6 +25,9 @@
   .att .t { margin-left: auto; color: #8a8577; font-size: 12px; white-space: nowrap; }
   .ok { color: #c5c8a5; } .bad { color: #d98c6b; }
   code { color: #cdbf9e; }
+  .head { margin-bottom: 8px; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
+  a.net { color: #cdbf9e; text-decoration: none; }
+  a.net:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -42,7 +45,8 @@
 
   <p class="muted" style="margin-top:26px;font-size:12.5px">
     Only hashes are stored on-chain — never your raw data. This page reads the public
-    <code>Attestations</code> contract on peaq and lists every report anchored for the VIN.
+    <code>Attestations</code> contracts on <span id="nets">peaq</span> and lists every report
+    anchored for the VIN on each chain.
   </p>
 </div>
 
@@ -51,14 +55,36 @@
     createPublicClient, http, defineChain, keccak256, stringToBytes,
   } from "https://esm.sh/viem@2.21.0";
 
-  // Filled in after deployment (see contracts/script/Deploy.s.sol output).
-  const CONFIG = {
-    // peaq mainnet — live deployment (2026-09-02).
-    rpcUrl: "https://peaq.api.onfinality.io/public",
-    chainId: 3338,
-    registry: "0x99065e9801C6416E542C6D129d18c82d51f08475",
-    attestations: "0x9aa2ed63403400aB7Cdeb44f933729fB3AF5f46d",
-  };
+  // Every chain the same VehicleRegistry + Attestations pair is deployed on. A VIN is looked
+  // up on all of them in parallel; a network with empty addresses is skipped.
+  // Fill in the Robinhood Chain addresses after running contracts/script/Deploy.s.sol
+  // (docs/DEPLOY_ROBINHOOD.md).
+  const NETWORKS = [
+    {
+      // peaq mainnet — live deployment (2026-09-02).
+      name: "peaq", chainId: 3338, symbol: "PEAQ",
+      rpcUrl: "https://peaq.api.onfinality.io/public",
+      explorer: (a) => `https://peaq.subscan.io/account/${a}`,
+      registry: "0x99065e9801C6416E542C6D129d18c82d51f08475",
+      attestations: "0x9aa2ed63403400aB7Cdeb44f933729fB3AF5f46d",
+    },
+    {
+      // Robinhood Chain mainnet (Arbitrum Orbit L2, ETH gas).
+      name: "Robinhood Chain", chainId: 4663, symbol: "ETH",
+      rpcUrl: "https://rpc.mainnet.chain.robinhood.com",
+      explorer: (a) => `https://robinhoodchain.blockscout.com/address/${a}`,
+      registry: "",
+      attestations: "",
+    },
+    {
+      // Robinhood Chain testnet.
+      name: "Robinhood Chain Testnet", chainId: 46630, symbol: "ETH",
+      rpcUrl: "https://rpc.testnet.chain.robinhood.com",
+      explorer: (a) => `https://explorer.testnet.chain.robinhood.com/address/${a}`,
+      registry: "",
+      attestations: "",
+    },
+  ].filter((n) => /^0x[0-9a-fA-F]{40}$/.test(n.registry) && /^0x[0-9a-fA-F]{40}$/.test(n.attestations));
 
   const registryAbi = [
     { type: "function", name: "tokenForVin", stateMutability: "view",
@@ -75,44 +101,69 @@
       ], type: "tuple" }] },
   ];
 
-  const chain = defineChain({
-    id: CONFIG.chainId, name: "peaq",
-    nativeCurrency: { name: "PEAQ", symbol: "PEAQ", decimals: 18 },
-    rpcUrls: { default: { http: [CONFIG.rpcUrl] } },
-  });
-  const client = createPublicClient({ chain, transport: http(CONFIG.rpcUrl) });
+  for (const n of NETWORKS) {
+    const chain = defineChain({
+      id: n.chainId, name: n.name,
+      nativeCurrency: { name: n.symbol, symbol: n.symbol, decimals: 18 },
+      rpcUrls: { default: { http: [n.rpcUrl] } },
+    });
+    n.client = createPublicClient({ chain, transport: http(n.rpcUrl) });
+  }
+  const names = NETWORKS.map((n) => n.name);
+  document.getElementById("nets").textContent =
+    names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : (names[0] ?? "—");
+
   const out = document.getElementById("out");
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  // Provenance record for one VIN on one network.
+  async function readNetwork(n, vinHash) {
+    const tokenId = await n.client.readContract({ address: n.registry, abi: registryAbi, functionName: "tokenForVin", args: [vinHash] });
+    if (tokenId === 0n) return { n, tokenId, rows: [] };
+    const count = await n.client.readContract({ address: n.attestations, abi: attAbi, functionName: "count", args: [tokenId] });
+    const rows = [];
+    for (let i = Number(count) - 1; i >= 0; i--) {
+      rows.push(await n.client.readContract({ address: n.attestations, abi: attAbi, functionName: "at", args: [tokenId, BigInt(i)] }));
+    }
+    return { n, tokenId, rows };
+  }
+
+  function card(res) {
+    const { n } = res;
+    const link = `<a class="net" href="${esc(n.explorer(n.attestations))}" target="_blank" rel="noopener">${esc(n.name)} ↗</a>`;
+    if (res.error) return `<div class="card"><div class="head">${link}</div><span class="bad">Error reading chain:</span> <span class="muted">${esc(res.error.slice(0, 160))}</span></div>`;
+    if (res.tokenId === 0n) return `<div class="card"><div class="head">${link}</div><span class="muted">No provenance record for this VIN on ${esc(n.name)}.</span></div>`;
+    const rows = res.rows.map((a) => {
+      const when = new Date(Number(a.timestamp) * 1000).toLocaleString();
+      return `<div class="att"><span class="h">${esc(a.reportHash)}</span><span class="t">${esc(when)}</span></div>`;
+    }).join("");
+    return `<div class="card"><div class="head">${link}</div>
+      <div class="ok">✓ Verified vehicle #${res.tokenId} · ${res.rows.length} anchored report(s)</div>
+      <div style="margin-top:10px">${rows}</div></div>`;
+  }
 
   async function verify() {
     const vin = document.getElementById("vin").value.trim().toUpperCase();
     if (!vin) return;
-    out.innerHTML = `<div class="card muted">Reading chain…</div>`;
-    if (CONFIG.registry.startsWith("0x0000")) {
-      out.innerHTML = `<div class="card muted">Contracts not deployed yet — fill CONFIG after running the deploy script.</div>`;
+    if (!NETWORKS.length) {
+      out.innerHTML = `<div class="card muted">Contracts not deployed yet — fill NETWORKS after running the deploy script.</div>`;
       return;
     }
-    try {
-      const vinHash = keccak256(stringToBytes(vin));
-      const tokenId = await client.readContract({ address: CONFIG.registry, abi: registryAbi, functionName: "tokenForVin", args: [vinHash] });
-      if (tokenId === 0n) {
-        out.innerHTML = `<div class="card"><span class="bad">No provenance record</span> for this VIN yet.</div>`;
-        return;
-      }
-      const n = await client.readContract({ address: CONFIG.attestations, abi: attAbi, functionName: "count", args: [tokenId] });
-      let rows = "";
-      for (let i = Number(n) - 1; i >= 0; i--) {
-        const a = await client.readContract({ address: CONFIG.attestations, abi: attAbi, functionName: "at", args: [tokenId, BigInt(i)] });
-        const when = new Date(Number(a.timestamp) * 1000).toLocaleString();
-        rows += `<div class="att"><span class="h">${a.reportHash}</span><span class="t">${when}</span></div>`;
-      }
-      out.innerHTML = `<div class="card"><div class="ok">✓ Verified vehicle #${tokenId} · ${n} anchored report(s)</div>
-        <div style="margin-top:10px">${rows}</div></div>`;
-    } catch (e) {
-      out.innerHTML = `<div class="card bad">Error reading chain: ${String(e).slice(0, 160)}</div>`;
-    }
+    out.innerHTML = `<div class="card muted">Reading ${NETWORKS.length} chain(s)…</div>`;
+    const vinHash = keccak256(stringToBytes(vin));
+    const results = await Promise.all(NETWORKS.map((n) =>
+      readNetwork(n, vinHash).catch((e) => ({ n, error: String(e) }))));
+    const found = results.filter((r) => !r.error && r.tokenId !== 0n).length;
+    const summary = found
+      ? `<div class="card ok">Anchored on ${found} of ${NETWORKS.length} chain(s). The same report hash on independent chains is independent proof.</div>`
+      : `<div class="card"><span class="bad">No provenance record</span> for this VIN yet.</div>`;
+    out.innerHTML = summary + results.map(card).join("");
+    history.replaceState(null, "", `?vin=${encodeURIComponent(vin)}`);
   }
   document.getElementById("go").addEventListener("click", verify);
   document.getElementById("vin").addEventListener("keydown", (e) => { if (e.key === "Enter") verify(); });
+  const preset = new URLSearchParams(location.search).get("vin");
+  if (preset) { document.getElementById("vin").value = preset; verify(); }
 </script>
 </body>
 </html>

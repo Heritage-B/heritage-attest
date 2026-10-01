@@ -10,7 +10,10 @@ parameters, computes a health score, detects misfires, flags cleared/reset diagn
 layer: it anchors a signed hash of each report so that **odometer and code-reset history
 cannot be retroactively forged**, and is portable across owners, dealers and borders.
 
-> Grant deliverable for the **peaq Ecosystem Grant** (chain-agnostic; peaq is the first target).
+> **Chain-agnostic, dual-chain:** the same contracts and the same report hash are anchored on
+> **peaq** (machine-economy L1, live on mainnet since 2026-09-02) and **Robinhood Chain**
+> (Arbitrum Orbit L2, ETH gas — see [Deployments](#deployments)). Two independent ledgers holding the same hash = proof that
+> doesn't depend on any single chain. Started as the peaq Ecosystem Grant deliverable.
 > The product does not need a blockchain — the single useful on-chain feature is
 > **anchoring report hashes** so provenance can't be rewritten after the fact.
 
@@ -21,10 +24,11 @@ cannot be retroactively forged**, and is portable across owners, dealers and bor
    report {vin, odometer, timestamp, health, dtcCodes, tamperFlags}
         │
         ├─ canonicalize → keccak256  ─────────────►  reportHash (32 bytes)
-        │                                            EIP-712 signature
+        │                                            signed tx from the HB signer
         ▼
-   raw scan  ──►  OFF-CHAIN (D1 / R2)     hash + sig  ──►  ON-CHAIN (peaq)
-                  (never leaves us)                        Attestations.anchor(tokenId, hash)
+   raw scan  ──►  OFF-CHAIN (D1 / R2)     hash  ──┬──►  ON-CHAIN: peaq            Attestations.anchor(tokenId, hash)
+                  (never leaves us)               └──►  ON-CHAIN: Robinhood Chain  Attestations.anchor(tokenId, hash)
+                                                  (independent: one chain failing never blocks the other)
 ```
 
 Only 32-byte hashes + signatures go on-chain. Raw, personal telemetry stays off-chain —
@@ -35,10 +39,31 @@ privacy-first by design.
 | Path | What |
 |---|---|
 | `contracts/` | Solidity: `VehicleRegistry` (one identity per VIN) + `Attestations` (append-only signed report hashes). Foundry, zero external deps. |
-| `packages/attestor/` | TypeScript lib: canonicalize a report → `keccak256` → sign → anchor. Chain-agnostic `ChainAdapter` + `PeaqAdapter` (viem). Runs in Cloudflare Workers. |
-| `apps/verify/` | Public **"verify by VIN"** page — reads the chain and shows a car's anchored provenance timeline. |
-| `worker/` | How HeritageB's backend calls the attestor after each assessment. |
-| `docs/` | Architecture + the peaq grant application. |
+| `packages/attestor/` | TypeScript lib: canonicalize a report → `keccak256` → anchor. Chain-agnostic `ChainAdapter`; `EvmAdapter` for any EVM chain, with `PeaqAdapter` and `RobinhoodChainAdapter` presets; `anchorReportMulti` anchors on several chains independently (viem). Runs in Cloudflare Workers. |
+| `apps/verify/` | Public **"verify by VIN"** page — reads every configured chain in parallel and shows a car's anchored provenance timeline per chain. |
+| `worker/` | How HeritageB's backend calls the attestor after each assessment (dual-chain). |
+| `docs/` | [Robinhood Chain deploy guide](docs/DEPLOY_ROBINHOOD.md) + the peaq grant application. |
+
+## Deployments
+
+| Chain | Chain ID | VehicleRegistry | Attestations |
+|---|---|---|---|
+| peaq mainnet | 3338 | [`0x99065e9801C6416E542C6D129d18c82d51f08475`](https://peaq.subscan.io/account/0x99065e9801C6416E542C6D129d18c82d51f08475) | [`0x9aa2ed63403400aB7Cdeb44f933729fB3AF5f46d`](https://peaq.subscan.io/account/0x9aa2ed63403400aB7Cdeb44f933729fB3AF5f46d) |
+| Robinhood Chain Testnet | 46630 | _pending deploy_ | _pending deploy_ |
+| Robinhood Chain | 4663 | _pending deploy_ | _pending deploy_ |
+
+Same source, same compiler settings (`evm_version = "london"`, pinned in `foundry.toml`) →
+same bytecode on every chain.
+
+```ts
+import { anchorReportMulti, PeaqAdapter, RobinhoodChainAdapter } from "@heritageb/attestor";
+
+const outcomes = await anchorReportMulti({
+  peaq: new PeaqAdapter({ rpcUrl, chainId: 3338, registry, attestations, privateKey }),
+  robinhood: new RobinhoodChainAdapter({ network: "mainnet", registry: rhRegistry, attestations: rhAttestations, privateKey }),
+}, report);
+// → [{ chain: "peaq", ok: true, result: { tokenId, reportHash, tx } }, { chain: "robinhood", ok: true, … }]
+```
 
 ## Quickstart
 
@@ -62,20 +87,32 @@ bash scripts/e2e-local.sh
 # ✅ E2E PASSED — verify(original)=true, verify(forged)=false, idempotent VIN
 ```
 
-Deploy to a live chain (peaq Agung testnet, or mainnet):
+Deploy to a live chain — the signer comes from an encrypted Foundry keystore
+(`cast wallet import hb-deployer --interactive`), never from the repo:
 
 ```bash
 cd contracts
-DEPLOYER_PK=0x... forge script script/Deploy.s.sol \
-  --rpc-url <PEAQ_RPC> --broadcast
+# Robinhood Chain testnet (chainId 46630) — full walkthrough: docs/DEPLOY_ROBINHOOD.md
+export ROBINHOOD_TESTNET_RPC=https://rpc.testnet.chain.robinhood.com
+forge script script/Deploy.s.sol --rpc-url robinhood_testnet \
+  --account hb-deployer --sender $(cast wallet address --account hb-deployer) \
+  --broadcast --gas-estimate-multiplier 200 \
+  --verify --verifier blockscout --verifier-url https://explorer.testnet.chain.robinhood.com/api/
+
+# peaq (chainId 3338)
+export PEAQ_RPC=https://peaq.api.onfinality.io/public
+forge script script/Deploy.s.sol --rpc-url peaq --account hb-deployer \
+  --sender $(cast wallet address --account hb-deployer) --broadcast
 ```
 
 ## Status
 
 MVP. Roadmap tracks the grant milestones:
 
-- **M1** — contracts on peaq testnet, attestor lib, demo anchoring a real report. *(this repo)*
-- **M2** — mainnet + wired into HeritageB assess flow + 25 vehicles + public verify page.
+- **M1** — contracts on peaq, attestor lib, demo anchoring a real report. ✅ (peaq mainnet, 2026-09-02)
+- **M2** — wired into the HeritageB app ("Seal on-chain") + public verify page. ✅
+- **Robinhood Chain** — second chain: `RobinhoodChainAdapter`, multi-chain anchoring, multi-chain
+  verify page, Foundry deploy config. Built for Arbitrum Open House Singapore (Sept–Oct 2026).
 - **M3** — 50 vehicles, 5 paid pilot inspections, fraud-flag hit-rate report.
 
 ## License

@@ -1,7 +1,7 @@
 /**
  * Chain-agnostic surface the attestor needs. Implement this once per target
- * chain (peaq first). Keeps the grant deliverable portable: the same report →
- * hash → anchor flow works on peaq, DIMO, Base, or a local devnet.
+ * chain — {@link EvmAdapter} already covers any EVM chain (peaq, Robinhood Chain,
+ * Arbitrum, a local devnet). The same report → hash → anchor flow works everywhere.
  */
 export interface ChainAdapter {
   /** Register (or return existing) the vehicle identity for a VIN hash. Returns its tokenId. */
